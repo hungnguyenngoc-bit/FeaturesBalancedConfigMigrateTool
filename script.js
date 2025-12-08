@@ -82,13 +82,22 @@ const parseSheetId = (input) => {
 };
 
 const fetchJson = async (url) => {
-  const target = CORS_PROXY ? `${CORS_PROXY}${encodeURIComponent(url)}` : url;
-  const res = await fetch(target);
-  if (!res.ok) {
-    const msg = await res.text();
-    throw new Error(`Request failed ${res.status}: ${msg}`);
+  const tryFetch = async (target) => {
+    const res = await fetch(target);
+    if (!res.ok) {
+      const msg = await res.text();
+      throw new Error(`Request failed ${res.status}: ${msg}`);
+    }
+    return res.json();
+  };
+  if (CORS_PROXY) {
+    try {
+      return await tryFetch(`${CORS_PROXY}${encodeURIComponent(url)}`);
+    } catch (err) {
+      console.warn('CORS proxy fetch failed, retrying direct', err);
+    }
   }
-  return res.json();
+  return tryFetch(url);
 };
 
 const buildEmbedUrl = ({ id, gid, publishedId }) => {
