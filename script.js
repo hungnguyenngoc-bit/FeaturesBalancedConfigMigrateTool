@@ -21,6 +21,7 @@ const STORAGE_PUB = 'gs_published_sheet';
 const STORAGE_CSV = 'gs_csv_text';
 const STORAGE_SECTION_JSON = 'gs_section_json';
 const STORAGE_MAP = 'gs_csv_map';
+const STORAGE_GID = 'gs_selected_gid';
 
 // Optional CORS proxy to bypass policy when serving statically. Example:
 const CORS_PROXY = 'https://cors.isomorphic-fetch.workers.dev/?u=';
@@ -64,6 +65,8 @@ const loadCache = () => {
   if (cachedSheet) sheetUrlInput.value = cachedSheet;
   const cachedPub = localStorage.getItem(STORAGE_PUB);
   if (cachedPub) publishedIdInput.value = cachedPub;
+  const cachedGid = localStorage.getItem(STORAGE_GID);
+  if (cachedGid) sheetSelect.dataset.cachedGid = cachedGid;
   loadSectionJsonCache();
   setCacheBadge();
 };
@@ -108,10 +111,12 @@ const buildEmbedUrl = ({ id, gid, publishedId }) => {
 
 const updateDropdown = (options = [], activeGid = '') => {
   sheetSelect.innerHTML = '';
+  const cached = sheetSelect.dataset.cachedGid;
+  const initialGid = activeGid || cached || '';
   if (!options.length) {
     const opt = document.createElement('option');
-    opt.value = activeGid || '';
-    opt.textContent = activeGid ? `gid ${activeGid}` : 'Chua tai';
+    opt.value = initialGid || '';
+    opt.textContent = initialGid ? `gid ${initialGid}` : 'Chua tai';
     sheetSelect.appendChild(opt);
     return;
   }
@@ -122,7 +127,9 @@ const updateDropdown = (options = [], activeGid = '') => {
     sheetSelect.appendChild(opt);
   });
   const match = activeGid && options.find(o => String(o.gid) === String(activeGid));
-  sheetSelect.value = match ? String(activeGid) : String(options[0].gid);
+  const selected = match ? String(activeGid) : (initialGid && options.find(o => String(o.gid) === String(initialGid)) ? initialGid : String(options[0].gid));
+  sheetSelect.value = selected;
+  localStorage.setItem(STORAGE_GID, selected);
 };
 
 const embedSheet = ({ id, gid, title, publishedId }) => {
@@ -263,7 +270,7 @@ const createSection = ({ name, id }) => {
   const cacheKey = sectionKey({ id, name });
   const textarea = document.createElement('textarea');
   const cachedText = sectionJsonStore[cacheKey];
-  textarea.value = typeof cachedText === 'string' && cachedText.trim() ? cachedText : '{}';
+  textarea.value = typeof cachedText === 'string' ? cachedText : '';
 
   const jsonHeader = document.createElement('div');
   jsonHeader.className = 'muted';
@@ -274,6 +281,14 @@ const createSection = ({ name, id }) => {
   applyBtn.type = 'button';
   applyBtn.textContent = 'Apply From Sheet';
 
+  const beautifyBtn = document.createElement('button');
+  beautifyBtn.type = 'button';
+  beautifyBtn.textContent = 'Beautify';
+
+  const compactBtn = document.createElement('button');
+  compactBtn.type = 'button';
+  compactBtn.textContent = 'Compact';
+
   const copyBtn = document.createElement('button');
   copyBtn.className = 'copy';
   copyBtn.type = 'button';
@@ -282,6 +297,8 @@ const createSection = ({ name, id }) => {
   const actionRow = document.createElement('div');
   actionRow.className = 'action-row';
   actionRow.appendChild(applyBtn);
+  actionRow.appendChild(beautifyBtn);
+  actionRow.appendChild(compactBtn);
   actionRow.appendChild(copyBtn);
 
   const treeMount = document.createElement('div');
@@ -295,12 +312,18 @@ const createSection = ({ name, id }) => {
 
   const parseAndRender = (highlightPaths = null) => {
     try {
-      const parsed = textarea.value.trim() ? JSON.parse(textarea.value) : {};
-      const normalized = textarea.value.trim() ? JSON.stringify(parsed, null, 2) : '{}';
+      const raw = textarea.value;
+      const parsed = raw.trim() ? JSON.parse(raw) : null;
+      const normalized = raw.trim() ? JSON.stringify(parsed, null, 2) : '';
       textarea.value = normalized;
-      renderJsonTree(parsed, treeMount, name);
-      if (highlightPaths !== null) lastHighlights = highlightPaths;
-      highlightTree(treeMount, lastHighlights);
+      if (parsed) {
+        renderJsonTree(parsed, treeMount, name);
+        if (highlightPaths !== null) lastHighlights = highlightPaths;
+        highlightTree(treeMount, lastHighlights);
+      } else {
+        treeMount.innerHTML = '';
+        if (highlightPaths !== null) lastHighlights = [];
+      }
       textarea.dataset.error = '';
       writeCache(normalized);
     } catch (err) {
@@ -347,6 +370,34 @@ const createSection = ({ name, id }) => {
 
   applyBtn.addEventListener('click', () => {
     applyMappingFromSheet({ id, name, textarea, treeMount });
+  });
+
+  beautifyBtn.addEventListener('click', () => {
+    try {
+      const parsed = textarea.value.trim() ? JSON.parse(textarea.value) : {};
+      const normalized = JSON.stringify(parsed, null, 2);
+      textarea.value = normalized;
+      renderJsonTree(parsed, treeMount, name);
+      highlightTree(treeMount, lastHighlights);
+      writeCache(normalized);
+      setSectionStatus(`Beautified JSON của ${id}`, 'info');
+    } catch (err) {
+      setSectionStatus('JSON không hợp lệ để beautify.', 'error');
+    }
+  });
+
+  compactBtn.addEventListener('click', () => {
+    try {
+      const parsed = textarea.value.trim() ? JSON.parse(textarea.value) : {};
+      const compact = JSON.stringify(parsed);
+      textarea.value = compact;
+      renderJsonTree(parsed, treeMount, name);
+      highlightTree(treeMount, lastHighlights);
+      writeCache(compact);
+      setSectionStatus(`Đã compact JSON của ${id}`, 'info');
+    } catch (err) {
+      setSectionStatus('JSON không hợp lệ để compact.', 'error');
+    }
   });
 
   copyBtn.addEventListener('click', async () => {
@@ -551,6 +602,7 @@ clearCacheBtn.addEventListener('click', () => {
 sheetSelect.addEventListener('change', () => {
   if (!currentSheetId) return;
   const gid = sheetSelect.value || '0';
+  localStorage.setItem(STORAGE_GID, gid);
   const meta = sheetsMeta.find(s => String(s.gid) === String(gid));
   embedSheet({ id: currentSheetId, gid, title: meta?.title, publishedId: currentPublishedId });
   setStatus(`Dang hien thi sheet: ${meta?.title || `gid ${gid}`}`);

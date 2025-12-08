@@ -40,6 +40,22 @@
       <div class="status" id="status">Chờ nhập thông tin.</div>
     </section>
 
+    <section class="panel section-panel">
+      <details open id="mappingToggle" class="mapping-section">
+        <summary>
+          <div>
+            <div class="compact-label">Mapping config</div>
+            <div class="muted">Chọn file config_mapping.csv (cột: ID,column,type,json_key) hoặc dùng cache.</div>
+          </div>
+          <span class="chevron">▼</span>
+        </summary>
+        <div class="file-row">
+          <input type="file" id="mappingFile" accept=".csv,text/csv" />
+        </div>
+        <div id="mappingHost"></div>
+      </details>
+    </section>
+
     <section class="panel sheet-panel">
       <div class="sheet-head">
         <div>
@@ -65,19 +81,6 @@
     <section class="panel section-panel">
       <div class="section-head">
         <div>
-          <div class="compact-label">Mapping config</div>
-          <div class="muted">Chọn file config_mapping.csv (cột: ID,column,type,json_key) hoặc dùng cache.</div>
-          <div class="file-row">
-            <input type="file" id="mappingFile" accept=".csv,text/csv" />
-          </div>
-        </div>
-      </div>
-      <div id="mappingHost"></div>
-    </section>
-
-    <section class="panel section-panel">
-      <div class="section-head">
-        <div>
           <div class="compact-label">Sections từ config CSV trong project</div>
           <div class="muted">Chọn file sections-config (cột: name, id) hoặc dùng cache.</div>
           <div class="file-row">
@@ -88,6 +91,13 @@
       </div>
       <div id="sectionsContainer" class="sections"></div>
     </section>
+
+    <footer class="footer">
+      <div class="footer-content">
+        <span>Author: HungNguyenNgoc</span>
+        <span>Version: 1.0.0 (2512081625)</span>
+      </div>
+    </footer>
   </main>
 
   <script src="script.js"></script>

@@ -71,7 +71,7 @@ select {
   padding: 12px 14px;
   border-radius: 8px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.02);
+  background: #0f1a3a;
   color: var(--text);
   width: 100%;
   font-size: 14px;
@@ -82,6 +82,11 @@ input[type="text"]:focus,
 select:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(77, 208, 225, 0.25);
+}
+select option {
+  background: #0f1a3a;
+  color: #e8edf6;
+  padding: 8px 10px;
 }
 .file-row {
   margin-top: 8px;
@@ -277,6 +282,33 @@ iframe {
   margin-top: 6px;
   overflow: auto;
   max-height: 400px;
+}
+.mapping-section summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  list-style: none;
+  cursor: pointer;
+}
+.mapping-section summary::-webkit-details-marker { display: none; }
+.mapping-section summary .chevron {
+  font-size: 14px;
+  color: var(--muted);
+  transition: transform 0.2s ease;
+}
+.mapping-section[open] summary .chevron {
+  transform: rotate(180deg);
+}
+.footer {
+  padding-top: 300px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.footer-content {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 .map-table {
   width: 100%;
