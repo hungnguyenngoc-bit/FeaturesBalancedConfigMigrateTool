@@ -1,0 +1,32 @@
+ID,name,column,type,json_key
+B1,Shield,version,int,Unlock_Type
+B1,Shield,star,string,Shield_StarUnlock
+B1,Shield,song_start,string,Shield_SongStartUnlock
+,,,,
+B2,Rocket,version,int,Unlock_Type
+B2,Rocket,star,string,HyperBoost_StarUnlock
+B2,Rocket,song_start,string,HyperBoost_SongStartUnlock
+,,,,
+B3,Tiles Tidy,version,int,Unlock_Type
+B3,Tiles Tidy,star,string,TidyTile_StarUnlock
+B3,Tiles Tidy,song_start,string,TidyTile_SongStartUnlock
+,,,,
+Streak Box,Streak Box,version,int,Unlock_Type
+Streak Box,Streak Box,star,string,Unlock_Star
+Streak Box,Streak Box,song_start,string,Unlock_SongStart
+,,,,
+LE1,Thunder Quest,version,int,Config.unlock_conditions.unlockType
+LE1,Thunder Quest,star,int|int,Config.unlock_conditions.stars_earn|Config.unlock_conditions.further_star
+LE1,Thunder Quest,song_start,int|int,Config.unlock_conditions.song_start|Config.unlock_conditions.further_song_start
+,,,,
+LE2,Mystery Ruin,version,int,Config.unlockConditions.unlockType
+LE2,Mystery Ruin,star,int|int,Config.unlockConditions.stars_earn|Config.unlockConditions.further_star
+LE2,Mystery Ruin,song_start,int|int,Config.unlockConditions.song_start|Config.unlockConditions.further_song_start
+,,,,
+LE3,Milestone Event,version,int,Config.unlockCondition.unlockType
+LE3,Milestone Event,star,int|int,Config.unlockCondition.stars_earn|Config.unlockCondition.further_star
+LE3,Milestone Event,song_start,int|int,Config.unlockCondition.song_start|Config.unlockCondition.further_song_start
+,,,,
+LE4,Phonk Life,version,int,Config.unlockConditions.unlockType
+LE4,Phonk Life,star,string,Config.unlockConditions.stars_earn|Config.unlockConditions.further_star
+LE4,Phonk Life,song_start,string,Config.unlockConditions.song_start|Config.unlockConditions.further_song_start

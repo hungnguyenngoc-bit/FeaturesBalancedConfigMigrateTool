@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Google Sheet Viewer</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="page">
+    <header>
+      <div>
+        <h1>Google Sheet Viewer</h1>
+        <p class="lead">Nhập API key và URL Google Sheet để xem trực tiếp trang sheet (web view embed).</p>
+      </div>
+      <div class="badge" id="cacheState">Cache: none</div>
+    </header>
+
+    <section class="panel">
+      <div class="controls">
+        <label>
+          Google Cloud API Key
+          <input type="text" id="apiKey" placeholder="AIza..." autocomplete="off" />
+        </label>
+        <label>
+          Google Sheet URL hoặc ID
+          <input type="text" id="sheetUrl" placeholder="https://docs.google.com/spreadsheets/d/..." autocomplete="off" />
+        </label>
+        <label>
+          Published sheet ID (d/e/...)
+          <input type="text" id="publishedId" placeholder="2PACX-..." autocomplete="off" />
+        </label>
+        <div class="btn-row">
+          <button id="loadBtn">Tải dữ liệu</button>
+          <button class="secondary" id="clearCacheBtn">Clear cache</button>
+        </div>
+      </div>
+      <div class="status" id="status">Chờ nhập thông tin.</div>
+    </section>
+
+    <section class="panel sheet-panel">
+      <div class="sheet-head">
+        <div>
+          <div class="compact-label">Web view Google Sheet</div>
+          <div class="muted">Yêu cầu sheet public hoặc bạn đã đăng nhập Google trong cùng trình duyệt.</div>
+          <div class="selector-row">
+            <label class="compact-label" for="sheetSelect">Chọn tab sheet</label>
+            <select id="sheetSelect">
+              <option value="">Chưa tải</option>
+            </select>
+          </div>
+        </div>
+        <div class="badge-row">
+          <div class="badge" id="sheetBadge">Sheet: -</div>
+          <div class="badge" id="dimensionBadge">Embed</div>
+        </div>
+      </div>
+      <div class="iframe-wrap">
+        <iframe id="sheetFrame" title="Google Sheet" allowfullscreen></iframe>
+      </div>
+    </section>
+
+    <section class="panel section-panel">
+      <div class="section-head">
+        <div>
+          <div class="compact-label">Mapping config</div>
+          <div class="muted">Chọn file config_mapping.csv (cột: ID,column,type,json_key) hoặc dùng cache.</div>
+          <div class="file-row">
+            <input type="file" id="mappingFile" accept=".csv,text/csv" />
+          </div>
+        </div>
+      </div>
+      <div id="mappingHost"></div>
+    </section>
+
+    <section class="panel section-panel">
+      <div class="section-head">
+        <div>
+          <div class="compact-label">Sections từ config CSV trong project</div>
+          <div class="muted">Chọn file sections-config (cột: name, id) hoặc dùng cache.</div>
+          <div class="file-row">
+            <input type="file" id="sectionsFile" accept=".csv,text/csv" />
+          </div>
+        </div>
+        <div class="badge" id="sectionStatus">Chưa tải</div>
+      </div>
+      <div id="sectionsContainer" class="sections"></div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
