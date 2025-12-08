@@ -299,6 +299,22 @@ iframe {
 .mapping-section[open] summary .chevron {
   transform: rotate(180deg);
 }
+.section summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  list-style: none;
+  cursor: pointer;
+}
+.section summary::-webkit-details-marker { display: none; }
+.section summary .chevron {
+  font-size: 14px;
+  color: var(--muted);
+  transition: transform 0.2s ease;
+}
+.section[open] summary .chevron {
+  transform: rotate(180deg);
+}
 .footer {
   padding-top: 300px;
   color: var(--muted);

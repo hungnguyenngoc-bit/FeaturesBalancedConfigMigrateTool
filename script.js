@@ -261,7 +261,7 @@ const createSection = ({ name, id }) => {
   const details = document.createElement('details');
   details.className = 'section';
   const summary = document.createElement('summary');
-  summary.innerHTML = `<span>${id} - ${name}</span>`;
+  summary.innerHTML = `<span class="section-title">${id} - ${name}</span><span class="chevron">▼</span>`;
   details.appendChild(summary);
 
   const body = document.createElement('div');
@@ -428,12 +428,6 @@ const renderSections = (rows) => {
   rows.forEach(({ name, id }) => {
     const sec = createSection({ name, id });
     sectionsContainer.appendChild(sec);
-    sec.addEventListener('toggle', () => {
-      if (!sec.open) return;
-      sectionsContainer.querySelectorAll('details.section').forEach(other => {
-        if (other !== sec) other.open = false;
-      });
-    });
   });
   setSectionStatus(`Da tao ${rows.length} section`, 'info');
 };
