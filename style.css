@@ -25,8 +25,17 @@ body {
   display: flex;
   justify-content: center;
   padding: 32px 20px 64px;
+  position: relative;
+  overflow-x: hidden;
 }
 .page { width: min(1200px, 100%); }
+.snow-canvas, #snowCanvas {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+.page { position: relative; z-index: 1; }
 header {
   display: flex;
   justify-content: space-between;

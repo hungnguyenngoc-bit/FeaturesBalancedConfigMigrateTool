@@ -13,6 +13,9 @@ const sectionsContainer = document.querySelector('#sectionsContainer');
 const sectionStatus = document.querySelector('#sectionStatus');
 const sectionsFileInput = document.querySelector('#sectionsFile');
 const mappingFileInput = document.querySelector('#mappingFile');
+const snowCanvas = document.querySelector('#snowCanvas');
+const sectionsDefaultBtn = document.querySelector('#sectionsDefault');
+const mappingDefaultBtn = document.querySelector('#mappingDefault');
 
 const STORAGE_KEY = 'gs_api_key';
 const STORAGE_SHEET = 'gs_last_sheet';
@@ -22,8 +25,7 @@ const STORAGE_SECTION_JSON = 'gs_section_json';
 const STORAGE_MAP = 'gs_csv_map';
 
 // Optional CORS proxy to bypass policy when serving statically. Example:
-// const CORS_PROXY = 'https://cors.isomorphic-fetch.workers.dev/?u=';
-const CORS_PROXY = '';
+const CORS_PROXY = 'https://cors.isomorphic-fetch.workers.dev/?u=';
 
 let sheetsMeta = [];
 let currentSheetId = '';
@@ -420,21 +422,39 @@ const readLocalFile = (file) => new Promise((resolve, reject) => {
   reader.readAsText(file);
 });
 
-const loadProjectConfig = async () => {
+const autoFetchConfig = async () => {
   try {
-    const cachedMap = localStorage.getItem(STORAGE_MAP);
-    const cachedCsv = localStorage.getItem(STORAGE_CSV);
-    if (cachedMap) buildMappingIndex(parseMappingCsv(cachedMap));
-    if (cachedCsv) {
-      handleCsvText(cachedCsv);
-      renderMappingTable();
-      setSectionStatus('Da load config tu cache. Chon file de cap nhat.', 'info');
-    } else {
-      setSectionStatus('Chon file sections/mapping de load config.', 'warn');
-    }
+    const sectionsUrl = CORS_PROXY ? `${CORS_PROXY}${encodeURIComponent('Configs/sections-config.csv')}` : 'Configs/sections-config.csv';
+    const mappingUrl = CORS_PROXY ? `${CORS_PROXY}${encodeURIComponent('Configs/config_mapping.csv')}` : 'Configs/config_mapping.csv';
+    const [sectionsRes, mapRes] = await Promise.all([
+      fetch(sectionsUrl, { cache: 'no-cache' }),
+      fetch(mappingUrl, { cache: 'no-cache' }),
+    ]);
+    if (!sectionsRes.ok || !mapRes.ok) throw new Error('fetch config failed');
+    const [sectionsText, mapText] = await Promise.all([sectionsRes.text(), mapRes.text()]);
+    localStorage.setItem(STORAGE_MAP, mapText);
+    localStorage.setItem(STORAGE_CSV, sectionsText);
+    buildMappingIndex(parseMappingCsv(mapText));
+    handleCsvText(sectionsText);
+    renderMappingTable();
+    setSectionStatus('Da load config tu file du an.', 'info');
+    return true;
   } catch (err) {
-    console.error(err);
-    setSectionStatus('Khong tai duoc config', 'error');
+    console.warn('Auto fetch config failed, fallback to cache', err);
+    return false;
+  }
+};
+
+const loadProjectConfig = async () => {
+  const cachedMap = localStorage.getItem(STORAGE_MAP);
+  const cachedCsv = localStorage.getItem(STORAGE_CSV);
+  if (cachedMap) buildMappingIndex(parseMappingCsv(cachedMap));
+  if (cachedCsv) {
+    handleCsvText(cachedCsv);
+    renderMappingTable();
+    setSectionStatus('Da load config tu cache. Chon file hoac nhan Default de cap nhat.', 'info');
+  } else {
+    setSectionStatus('Chon file sections/mapping hoac nhan Default de tai config.', 'warn');
   }
 };
 
@@ -545,6 +565,62 @@ sectionsFileInput?.addEventListener('change', async (e) => {
   }
 });
 
+// Snow effect
+const initSnow = () => {
+  if (!snowCanvas) return;
+  const ctx = snowCanvas.getContext('2d');
+  let width = window.innerWidth;
+  let height = window.innerHeight;
+  let flakes = [];
+
+  const resize = () => {
+    width = window.innerWidth;
+    height = window.innerHeight;
+    snowCanvas.width = width;
+    snowCanvas.height = height;
+  };
+  resize();
+  window.addEventListener('resize', resize);
+
+  const createFlakes = (count = 120) => {
+    flakes = Array.from({ length: count }, () => ({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      r: Math.random() * 2 + 1,
+      d: Math.random() * 0.8 + 0.2,
+      sway: Math.random() * 1,
+    }));
+  };
+  createFlakes();
+
+  const draw = () => {
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    flakes.forEach(f => {
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    update();
+    requestAnimationFrame(draw);
+  };
+
+  const update = () => {
+    flakes.forEach(f => {
+      f.y += f.d * 2;
+      f.x += Math.sin(f.y * 0.01) * f.sway;
+      if (f.y > height) {
+        f.y = -5;
+        f.x = Math.random() * width;
+      }
+    });
+  };
+
+  draw();
+};
+
+initSnow();
+
 mappingFileInput?.addEventListener('change', async (e) => {
   const file = e.target.files?.[0];
   if (!file) return;
@@ -558,6 +634,16 @@ mappingFileInput?.addEventListener('change', async (e) => {
     console.error(err);
     setSectionStatus('Lỗi đọc mapping.', 'error');
   }
+});
+
+sectionsDefaultBtn?.addEventListener('click', () => {
+  localStorage.removeItem(STORAGE_CSV);
+  autoFetchConfig();
+});
+
+mappingDefaultBtn?.addEventListener('click', () => {
+  localStorage.removeItem(STORAGE_MAP);
+  autoFetchConfig();
 });
 
 const fetchSheetRows = async (gid) => {

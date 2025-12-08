@@ -3,14 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Google Sheet Viewer</title>
+  <title>Google Sheet to Json Migration Tool</title>
+  <link rel="icon" type="image/png" href="Icon/icon.png" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <canvas id="snowCanvas"></canvas>
   <main class="page">
     <header>
       <div>
-        <h1>Google Sheet Viewer</h1>
+        <h1>Google Sheet to Json Migration Tool</h1>
         <p class="lead">Nhập API key và URL Google Sheet để xem trực tiếp trang sheet (web view embed).</p>
       </div>
       <div class="badge" id="cacheState">Cache: none</div>
@@ -67,6 +69,7 @@
           <div class="muted">Chọn file config_mapping.csv (cột: ID,column,type,json_key) hoặc dùng cache.</div>
           <div class="file-row">
             <input type="file" id="mappingFile" accept=".csv,text/csv" />
+            <button class="secondary" id="mappingDefault">Default</button>
           </div>
         </div>
       </div>
@@ -80,6 +83,7 @@
           <div class="muted">Chọn file sections-config (cột: name, id) hoặc dùng cache.</div>
           <div class="file-row">
             <input type="file" id="sectionsFile" accept=".csv,text/csv" />
+            <button class="secondary" id="sectionsDefault">Default</button>
           </div>
         </div>
         <div class="badge" id="sectionStatus">Chưa tải</div>
