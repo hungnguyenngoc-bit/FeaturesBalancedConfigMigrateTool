@@ -310,12 +310,12 @@ const createSection = ({ name, id }) => {
     saveSectionJsonCache();
   };
 
-  const parseAndRender = (highlightPaths = null) => {
+  const parseAndRender = ({ highlightPaths = null, normalize = true } = {}) => {
     try {
       const raw = textarea.value;
       const parsed = raw.trim() ? JSON.parse(raw) : null;
       const normalized = raw.trim() ? JSON.stringify(parsed, null, 2) : '';
-      textarea.value = normalized;
+      if (normalize && parsed) textarea.value = normalized;
       if (parsed) {
         renderJsonTree(parsed, treeMount, name);
         if (highlightPaths !== null) lastHighlights = highlightPaths;
@@ -325,13 +325,13 @@ const createSection = ({ name, id }) => {
         if (highlightPaths !== null) lastHighlights = [];
       }
       textarea.dataset.error = '';
-      writeCache(normalized);
+      writeCache(normalize ? normalized : raw);
     } catch (err) {
       textarea.dataset.error = err.message;
     }
   };
 
-  textarea.addEventListener('input', parseAndRender);
+  textarea.addEventListener('input', () => parseAndRender({ normalize: false }));
   const commitTreeInput = (target) => {
     const path = target.dataset.path;
     const raw = textarea.value.trim() ? JSON.parse(textarea.value) : {};
