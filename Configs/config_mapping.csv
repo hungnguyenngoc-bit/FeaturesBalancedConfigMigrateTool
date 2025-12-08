@@ -28,5 +28,5 @@ LE3,Milestone Event,star,int|int,Config.unlockCondition.stars|Config.unlockCondi
 LE3,Milestone Event,song_start,int|int,Config.unlockCondition.songStart|Config.unlockCondition.furtherSongStart
 ,,,,
 LE4,Phonk Life,version,int,Config.unlockConditions.unlockType
-LE4,Phonk Life,star,string,Config.unlockConditions.stars_earn|Config.unlockConditions.further_star
-LE4,Phonk Life,song_start,string,Config.unlockConditions.song_start|Config.unlockConditions.further_song_start
+LE4,Phonk Life,star,int|int,Config.unlockConditions.stars_earn|Config.unlockConditions.further_star
+LE4,Phonk Life,song_start,int|int,Config.unlockConditions.song_start|Config.unlockConditions.further_song_start

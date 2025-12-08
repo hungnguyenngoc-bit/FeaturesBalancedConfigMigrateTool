@@ -777,7 +777,8 @@ const applyMappingFromSheet = async ({ id, name, textarea, treeMount }) => {
       if (colVal === undefined) return;
       const keys = entry.jsonKey.split('|');
       const types = (entry.type || '').split('|');
-      const parts = colVal.split(/[|;]/); // support both | and ; separators from sheet value
+      const shouldSplit = keys.length > 1 || !(types.length === 1 && types[0]?.toLowerCase() === 'string');
+      const parts = shouldSplit ? colVal.split(/[|;]/) : [colVal];
       keys.forEach((keyPath, idx) => {
         const t = types[idx] || types[0] || 'string';
         const v = castValue(parts[idx] ?? colVal, t);

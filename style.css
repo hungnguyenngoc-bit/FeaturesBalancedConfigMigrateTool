@@ -305,10 +305,8 @@ iframe {
   font-size: 13px;
 }
 .footer-content {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
+  display: grid;
+  gap: 4px;
 }
 .map-table {
   width: 100%;
