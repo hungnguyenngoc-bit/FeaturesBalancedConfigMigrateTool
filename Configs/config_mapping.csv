@@ -24,8 +24,8 @@ LE2,Mystery Ruin,star,int|int,Config.unlockConditions.stars_earn|Config.unlockCo
 LE2,Mystery Ruin,song_start,int|int,Config.unlockConditions.song_start|Config.unlockConditions.further_song_start
 ,,,,
 LE3,Milestone Event,version,int,Config.unlockCondition.unlockType
-LE3,Milestone Event,star,int|int,Config.unlockCondition.stars_earn|Config.unlockCondition.further_star
-LE3,Milestone Event,song_start,int|int,Config.unlockCondition.song_start|Config.unlockCondition.further_song_start
+LE3,Milestone Event,star,int|int,Config.unlockCondition.stars|Config.unlockCondition.furtherStars
+LE3,Milestone Event,song_start,int|int,Config.unlockCondition.songStart|Config.unlockCondition.furtherSongStart
 ,,,,
 LE4,Phonk Life,version,int,Config.unlockConditions.unlockType
 LE4,Phonk Life,star,string,Config.unlockConditions.stars_earn|Config.unlockConditions.further_star

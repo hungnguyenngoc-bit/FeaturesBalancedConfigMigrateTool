@@ -14,8 +14,6 @@ const sectionStatus = document.querySelector('#sectionStatus');
 const sectionsFileInput = document.querySelector('#sectionsFile');
 const mappingFileInput = document.querySelector('#mappingFile');
 const snowCanvas = document.querySelector('#snowCanvas');
-const sectionsDefaultBtn = document.querySelector('#sectionsDefault');
-const mappingDefaultBtn = document.querySelector('#mappingDefault');
 
 const STORAGE_KEY = 'gs_api_key';
 const STORAGE_SHEET = 'gs_last_sheet';
@@ -645,16 +643,6 @@ mappingFileInput?.addEventListener('change', async (e) => {
   }
 });
 
-sectionsDefaultBtn?.addEventListener('click', () => {
-  localStorage.removeItem(STORAGE_CSV);
-  autoFetchConfig();
-});
-
-mappingDefaultBtn?.addEventListener('click', () => {
-  localStorage.removeItem(STORAGE_MAP);
-  autoFetchConfig();
-});
-
 const fetchSheetRows = async (gid) => {
   const cacheKey = `${currentSheetId || ''}:${gid}`;
   if (sheetRowsCache[cacheKey]) return sheetRowsCache[cacheKey];
@@ -737,7 +725,7 @@ const applyMappingFromSheet = async ({ id, name, textarea, treeMount }) => {
       if (colVal === undefined) return;
       const keys = entry.jsonKey.split('|');
       const types = (entry.type || '').split('|');
-      const parts = colVal.split('|');
+      const parts = colVal.split(/[|;]/); // support both | and ; separators from sheet value
       keys.forEach((keyPath, idx) => {
         const t = types[idx] || types[0] || 'string';
         const v = castValue(parts[idx] ?? colVal, t);
