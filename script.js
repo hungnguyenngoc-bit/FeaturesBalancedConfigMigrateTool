@@ -22,6 +22,7 @@ const STORAGE_CSV = 'gs_csv_text';
 const STORAGE_SECTION_JSON = 'gs_section_json';
 const STORAGE_MAP = 'gs_csv_map';
 const STORAGE_GID = 'gs_selected_gid';
+const STORAGE_ALL_JSON = 'gs_all_json';
 
 // Optional CORS proxy to bypass policy when serving statically. Example:
 const CORS_PROXY = 'https://cors.isomorphic-fetch.workers.dev/?u=';
@@ -32,6 +33,8 @@ let currentPublishedId = '';
 let sectionJsonStore = {};
 let mappingById = {};
 let sheetRowsCache = {};
+let sectionRefs = [];
+let applyAllRef = null;
 
 const setStatus = (msg, type = 'info') => {
   const color = type === 'error' ? 'danger' : type === 'warn' ? 'warn' : 'muted';
@@ -200,6 +203,14 @@ const buildTreeNode = (value, path, labelOverride) => {
     keySpan.className = 'key';
     keySpan.textContent = labelText;
     keySpan.dataset.path = path;
+    if (path) {
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'remove-btn';
+      removeBtn.textContent = 'x';
+      removeBtn.dataset.path = path;
+      header.appendChild(removeBtn);
+    }
     const typeSpan = document.createElement('span');
     typeSpan.className = 'muted';
     typeSpan.textContent = isArray ? '[ ]' : '{ }';
@@ -223,11 +234,25 @@ const buildTreeNode = (value, path, labelOverride) => {
     input.className = 'value';
     input.value = value ?? '';
     input.dataset.path = path;
+    if (path) {
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'remove-btn';
+      removeBtn.textContent = 'x';
+      removeBtn.dataset.path = path;
+      row.appendChild(removeBtn);
+    }
     row.appendChild(keySpan);
     row.appendChild(input);
     li.appendChild(row);
   }
   return li;
+};
+
+const getTreeScroll = (container) => container.querySelector('.tree')?.scrollTop || 0;
+const setTreeScroll = (container, val) => {
+  const tree = container.querySelector('.tree');
+  if (tree) tree.scrollTop = val;
 };
 
 const renderJsonTree = (obj, container, sectionName) => {
@@ -368,6 +393,29 @@ const createSection = ({ name, id }) => {
     commitTreeInput(target);
   }, true);
 
+  treeMount.addEventListener('click', (e) => {
+    const btn = e.target.closest('.remove-btn');
+    if (!btn) return;
+    const path = btn.dataset.path;
+    if (!path) return;
+    try {
+      const raw = textarea.value.trim() ? JSON.parse(textarea.value) : {};
+      const segments = path.split('.').slice(1);
+      removeByPath(raw, segments.join('.'));
+      const normalized = JSON.stringify(raw, null, 2);
+      textarea.value = normalized;
+      const prevScroll = getTreeScroll(treeMount);
+      renderJsonTree(raw, treeMount, name);
+      highlightTree(treeMount, lastHighlights);
+      setTreeScroll(treeMount, prevScroll);
+      writeCache(normalized);
+      setSectionStatus(`Da xoa ${path}`, 'info');
+    } catch (err) {
+      console.error(err);
+      setSectionStatus('Loi xoa object.', 'error');
+    }
+  });
+
   applyBtn.addEventListener('click', () => {
     applyMappingFromSheet({ id, name, textarea, treeMount });
   });
@@ -416,18 +464,226 @@ const createSection = ({ name, id }) => {
   body.appendChild(textarea);
   body.appendChild(treeMount);
   details.appendChild(body);
-  return details;
+  return {
+    root: details,
+    controls: {
+      id,
+      name,
+      textarea,
+      treeMount,
+      applyBtn,
+    },
+  };
+};
+
+const applyAllSections = async () => {
+  if (!sectionRefs.length) {
+    setSectionStatus('Khong co section de apply.', 'warn');
+    return;
+  }
+  let workingJson = applyAllRef?.textarea?.value ?? sectionRefs[0]?.textarea?.value ?? '';
+  let highlightAll = [];
+  for (const sec of sectionRefs) {
+    try {
+      if (applyAllRef?.textarea) {
+        sec.textarea.value = workingJson;
+      }
+      const result = await applyMappingFromSheet({
+        id: sec.id,
+        name: sec.name,
+        textarea: sec.textarea,
+        treeMount: sec.treeMount,
+      });
+      if (result?.json) {
+        workingJson = JSON.stringify(result.json, null, 2);
+      } else {
+        workingJson = sec.textarea.value;
+      }
+      if (result?.highlights?.length) {
+        highlightAll.push(...result.highlights);
+      }
+    } catch (err) {
+      console.error(err);
+      setSectionStatus(`Loi apply ID ${sec.id}: ${err.message}`, 'error');
+      return;
+    }
+  }
+  if (applyAllRef?.textarea) {
+    applyAllRef.textarea.value = workingJson;
+    localStorage.setItem(STORAGE_ALL_JSON, workingJson);
+    if (applyAllRef.parseAndRender) {
+      const rootName = applyAllRef.sectionName || 'Apply tat ca sections';
+      const highlightForRoot = highlightAll.map(h => {
+        const parts = (h.path || '').split('.');
+        const trimmed = parts.length > 1 ? parts.slice(1).join('.') : parts.join('.');
+        return { path: `${rootName}.${trimmed}`, type: h.type };
+      });
+      applyAllRef.parseAndRender({ normalize: true, highlightPaths: highlightForRoot });
+    }
+  }
+  setSectionStatus('Da apply tat ca section tu sheet.', 'info');
+};
+
+const renderApplyAllSection = () => {
+  const id = 'ALL';
+  const name = 'Apply tat ca sections';
+  const details = document.createElement('details');
+  details.className = 'section';
+  details.open = true;
+  const summary = document.createElement('summary');
+  summary.innerHTML = `<span class="section-title">${name}</span><span class="chevron">>></span>`;
+  details.appendChild(summary);
+
+  const body = document.createElement('div');
+  body.className = 'body';
+
+  const textarea = document.createElement('textarea');
+  const cached = localStorage.getItem(STORAGE_ALL_JSON);
+  textarea.value = typeof cached === 'string' ? cached : '';
+
+  const applyAllBtn = document.createElement('button');
+  applyAllBtn.className = 'apply';
+  applyAllBtn.type = 'button';
+  applyAllBtn.textContent = 'Apply From Sheet (All)';
+
+  const beautifyBtn = document.createElement('button');
+  beautifyBtn.type = 'button';
+  beautifyBtn.textContent = 'Beautify';
+
+  const compactBtn = document.createElement('button');
+  compactBtn.type = 'button';
+  compactBtn.textContent = 'Compact';
+
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'copy';
+  copyBtn.type = 'button';
+  copyBtn.textContent = 'Copy JSON';
+
+  const actionRow = document.createElement('div');
+  actionRow.className = 'action-row';
+  actionRow.appendChild(applyAllBtn);
+  actionRow.appendChild(beautifyBtn);
+  actionRow.appendChild(compactBtn);
+  actionRow.appendChild(copyBtn);
+
+  const treeMount = document.createElement('div');
+  let lastHighlights = [];
+
+  const writeCache = (val) => localStorage.setItem(STORAGE_ALL_JSON, val);
+
+  const parseAndRender = ({ highlightPaths = null, normalize = true } = {}) => {
+    try {
+      const raw = textarea.value;
+      const parsed = raw.trim() ? JSON.parse(raw) : null;
+      const normalized = raw.trim() ? JSON.stringify(parsed, null, 2) : '';
+      if (normalize && parsed) textarea.value = normalized;
+      if (parsed) {
+        renderJsonTree(parsed, treeMount, name);
+        if (highlightPaths !== null) lastHighlights = highlightPaths;
+        highlightTree(treeMount, lastHighlights);
+      } else {
+        treeMount.innerHTML = '';
+        if (highlightPaths !== null) lastHighlights = [];
+      }
+      textarea.dataset.error = '';
+      writeCache(normalize ? normalized : raw);
+    } catch (err) {
+      textarea.dataset.error = err.message;
+    }
+  };
+
+  textarea.addEventListener('input', () => parseAndRender({ normalize: false }));
+
+  beautifyBtn.addEventListener('click', () => {
+    try {
+      const parsed = textarea.value.trim() ? JSON.parse(textarea.value) : {};
+      const normalized = JSON.stringify(parsed, null, 2);
+      textarea.value = normalized;
+      renderJsonTree(parsed, treeMount, name);
+      highlightTree(treeMount, lastHighlights);
+      writeCache(normalized);
+      setSectionStatus('Beautified JSON tong', 'info');
+    } catch {
+      setSectionStatus('JSON khong hop le de beautify.', 'error');
+    }
+  });
+
+  compactBtn.addEventListener('click', () => {
+    try {
+      const parsed = textarea.value.trim() ? JSON.parse(textarea.value) : {};
+      const compact = JSON.stringify(parsed);
+      textarea.value = compact;
+      renderJsonTree(parsed, treeMount, name);
+      highlightTree(treeMount, lastHighlights);
+      writeCache(compact);
+      setSectionStatus('Compact JSON tong', 'info');
+    } catch {
+      setSectionStatus('JSON khong hop le de compact.', 'error');
+    }
+  });
+
+  copyBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(textarea.value);
+      setSectionStatus('Da copy JSON tong', 'info');
+    } catch (err) {
+      console.error(err);
+      setSectionStatus('Loi copy JSON tong.', 'error');
+    }
+  });
+
+  applyAllBtn.addEventListener('click', () => applyAllSections());
+
+  treeMount.addEventListener('click', (e) => {
+    const btn = e.target.closest('.remove-btn');
+    if (!btn) return;
+    const path = btn.dataset.path;
+    if (!path) return;
+    try {
+      const raw = textarea.value.trim() ? JSON.parse(textarea.value) : {};
+      const segments = path.split('.').slice(1);
+      removeByPath(raw, segments.join('.'));
+      const normalized = JSON.stringify(raw, null, 2);
+      textarea.value = normalized;
+      const prevScroll = getTreeScroll(treeMount);
+      renderJsonTree(raw, treeMount, name);
+      highlightTree(treeMount, lastHighlights);
+      setTreeScroll(treeMount, prevScroll);
+      writeCache(normalized);
+      setSectionStatus(`Da xoa ${path}`, 'info');
+    } catch (err) {
+      console.error(err);
+      setSectionStatus('Loi xoa object.', 'error');
+    }
+  });
+
+  parseAndRender();
+
+  body.appendChild(actionRow);
+  body.appendChild(textarea);
+  body.appendChild(treeMount);
+  details.appendChild(body);
+
+  return { root: details, controls: { textarea, treeMount, parseAndRender, sectionName: name } };
 };
 
 const renderSections = (rows) => {
   sectionsContainer.innerHTML = '';
+  sectionRefs = [];
+  applyAllRef = null;
+  const fixed = renderApplyAllSection();
+  if (fixed) {
+    sectionsContainer.appendChild(fixed.root);
+    applyAllRef = fixed.controls;
+  }
   if (!rows.length) {
     setSectionStatus('Khong co du lieu tu CSV', 'warn');
     return;
   }
   rows.forEach(({ name, id }) => {
     const sec = createSection({ name, id });
-    sectionsContainer.appendChild(sec);
+    sectionsContainer.appendChild(sec.root);
+    sectionRefs.push(sec.controls);
   });
   setSectionStatus(`Da tao ${rows.length} section`, 'info');
 };
@@ -730,15 +986,66 @@ const castValue = (raw, type) => {
   return val;
 };
 
-const setByPath = (obj, path, value) => {
-  const segments = path.split('.');
+const isNumericKey = (seg) => /^\d+$/.test(seg);
+
+const parsePathSegments = (path) => path
+  .replace(/\[(\d+)\]/g, '.$1')
+  .split('.')
+  .filter(Boolean);
+
+const pathExists = (obj, segments) => {
+  if (!segments.length) return false;
   let cursor = obj;
   for (let i = 0; i < segments.length - 1; i++) {
-    const k = segments[i];
-    if (!cursor[k] || typeof cursor[k] !== 'object') cursor[k] = {};
-    cursor = cursor[k];
+    if (!cursor || typeof cursor !== 'object') return false;
+    const key = isNumericKey(segments[i]) ? Number(segments[i]) : segments[i];
+    cursor = cursor[key];
+    if (cursor === undefined) return false;
   }
-  cursor[segments[segments.length - 1]] = value;
+  const lastKey = isNumericKey(segments[segments.length - 1]) ? Number(segments[segments.length - 1]) : segments[segments.length - 1];
+  return cursor && Object.prototype.hasOwnProperty.call(cursor, lastKey);
+};
+
+const setByPath = (obj, path, value) => {
+  const segments = parsePathSegments(path);
+  if (!segments.length) return;
+  let cursor = obj;
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    const isIndex = isNumericKey(seg);
+    const key = isIndex ? Number(seg) : seg;
+    const isLast = i === segments.length - 1;
+    const nextIsIndex = !isLast && isNumericKey(segments[i + 1]);
+
+    if (isLast) {
+      cursor[key] = value;
+      return;
+    }
+
+    if (cursor[key] === undefined || typeof cursor[key] !== 'object') {
+      cursor[key] = nextIsIndex ? [] : {};
+    }
+    cursor = cursor[key];
+  }
+};
+
+const removeByPath = (obj, path) => {
+  const segments = parsePathSegments(path);
+  if (!segments.length) return;
+  let cursor = obj;
+  for (let i = 0; i < segments.length - 1; i++) {
+    const seg = segments[i];
+    const key = isNumericKey(seg) ? Number(seg) : seg;
+    if (!cursor || typeof cursor !== 'object' || !(key in cursor)) return;
+    cursor = cursor[key];
+  }
+  const last = segments[segments.length - 1];
+  const key = isNumericKey(last) ? Number(last) : last;
+  if (Array.isArray(cursor) && typeof key === 'number') {
+    if (key >= 0 && key < cursor.length) cursor.splice(key, 1);
+  } else if (cursor && typeof cursor === 'object') {
+    delete cursor[key];
+  }
 };
 
 const applyMappingFromSheet = async ({ id, name, textarea, treeMount }) => {
@@ -777,20 +1084,11 @@ const applyMappingFromSheet = async ({ id, name, textarea, treeMount }) => {
         const t = types[idx] || types[0] || 'string';
         const v = castValue(parts[idx] ?? colVal, t);
         if (v === undefined) return;
-        // detect whether field existed before
-        const segs = keyPath.split('.');
-        let cursor = currentJson;
-        for (let i = 0; i < segs.length - 1; i++) {
-          const k = segs[i];
-          if (!(k in cursor) || typeof cursor[k] !== 'object') {
-            cursor[k] = {};
-          }
-          cursor = cursor[k];
-        }
-        const lastKey = segs[segs.length - 1];
-        const existed = Object.prototype.hasOwnProperty.call(cursor, lastKey);
+        const segs = parsePathSegments(keyPath);
+        const existed = segs.length ? pathExists(currentJson, segs) : false;
         setByPath(currentJson, keyPath, v);
-        highlightMeta.push({ path: `${name}.${keyPath}`, type: existed ? 'existing' : 'new' });
+        const normalizedPath = segs.join('.');
+        highlightMeta.push({ path: `${name}.${normalizedPath}`, type: existed ? 'existing' : 'new' });
       });
     });
 
@@ -802,6 +1100,7 @@ const applyMappingFromSheet = async ({ id, name, textarea, treeMount }) => {
     sectionJsonStore[`${id}::${name}`] = normalized;
     saveSectionJsonCache();
     setSectionStatus(`Đã áp dụng từ sheet cho ID ${id}`, 'info');
+    return { json: currentJson, highlights: highlightMeta };
   } catch (err) {
     console.error(err);
     setSectionStatus(`Lỗi áp dụng từ sheet: ${err.message}`, 'error');
