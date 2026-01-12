@@ -14,18 +14,33 @@ const sectionStatus = document.querySelector('#sectionStatus');
 const sectionsFileInput = document.querySelector('#sectionsFile');
 const mappingFileInput = document.querySelector('#mappingFile');
 const snowCanvas = document.querySelector('#snowCanvas');
+const copyRangeInput = document.querySelector('#copyRange');
+const copySheetSelect = document.querySelector('#copySheetSelect');
+const copySelectBtn = document.querySelector('#copySelectBtn');
+const copySelectAllBtn = document.querySelector('#copySelectAllBtn');
+const copyClearBtn = document.querySelector('#copyClearBtn');
+const selectedSheetsList = document.querySelector('#selectedSheets');
+const startCloneBtn = document.querySelector('#startCloneBtn');
+const cloneColorInput = document.querySelector('#cloneColor');
+const cloneOverlay = document.querySelector('#cloneOverlay');
+const cloneProgress = document.querySelector('#cloneProgress');
 
-const STORAGE_KEY = 'gs_api_key';
-const STORAGE_SHEET = 'gs_last_sheet';
-const STORAGE_PUB = 'gs_published_sheet';
-const STORAGE_CSV = 'gs_csv_text';
-const STORAGE_SECTION_JSON = 'gs_section_json';
-const STORAGE_MAP = 'gs_csv_map';
-const STORAGE_GID = 'gs_selected_gid';
-const STORAGE_ALL_JSON = 'gs_all_json';
+const STORAGE_PREFIX = window.location.pathname.toLowerCase().includes('songlist.html')
+  ? 'songlist_'
+  : 'json_';
+const STORAGE_KEY = `${STORAGE_PREFIX}gs_api_key`;
+const STORAGE_SHEET = `${STORAGE_PREFIX}gs_last_sheet`;
+const STORAGE_PUB = `${STORAGE_PREFIX}gs_published_sheet`;
+const STORAGE_CSV = `${STORAGE_PREFIX}gs_csv_text`;
+const STORAGE_SECTION_JSON = `${STORAGE_PREFIX}gs_section_json`;
+const STORAGE_MAP = `${STORAGE_PREFIX}gs_csv_map`;
+const STORAGE_GID = `${STORAGE_PREFIX}gs_selected_gid`;
+const STORAGE_ALL_JSON = `${STORAGE_PREFIX}gs_all_json`;
+const STORAGE_SELECTED_SHEETS = `${STORAGE_PREFIX}gs_selected_copy_sheets`;
 
 // Optional CORS proxy to bypass policy when serving statically. Example:
 const CORS_PROXY = 'https://cors.isomorphic-fetch.workers.dev/?u=';
+const CLONE_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxPRWd7vE_xhjZg_qqV4iwvRsAF8BG9tt5dAxdAJUdQbyLnfNoXTEB-ZHXgOd6VDe0/exec';
 
 let sheetsMeta = [];
 let currentSheetId = '';
@@ -35,6 +50,7 @@ let mappingById = {};
 let sheetRowsCache = {};
 let sectionRefs = [];
 let applyAllRef = null;
+let selectedCopySheetIds = [];
 
 const setStatus = (msg, type = 'info') => {
   const color = type === 'error' ? 'danger' : type === 'warn' ? 'warn' : 'muted';
@@ -133,6 +149,127 @@ const updateDropdown = (options = [], activeGid = '') => {
   const selected = match ? String(activeGid) : (initialGid && options.find(o => String(o.gid) === String(initialGid)) ? initialGid : String(options[0].gid));
   sheetSelect.value = selected;
   localStorage.setItem(STORAGE_GID, selected);
+  refreshCopySheetOptions();
+};
+
+const getCurrentViewGid = () => String(sheetSelect?.value || '0');
+
+const getCopyEligibleSheets = () => sheetsMeta.filter(s => String(s.gid) !== getCurrentViewGid());
+
+const renderSelectedSheets = () => {
+  if (!selectedSheetsList) return;
+  const currentGid = getCurrentViewGid();
+  selectedCopySheetIds = selectedCopySheetIds.filter(gid => String(gid) !== currentGid);
+  localStorage.setItem(STORAGE_SELECTED_SHEETS, JSON.stringify(selectedCopySheetIds));
+  selectedSheetsList.innerHTML = '';
+  if (!selectedCopySheetIds.length) {
+    const empty = document.createElement('div');
+    empty.className = 'muted';
+    empty.textContent = 'Chua chon sheet nao.';
+    selectedSheetsList.appendChild(empty);
+    return;
+  }
+  selectedCopySheetIds.forEach((gid) => {
+    const meta = sheetsMeta.find(s => String(s.gid) === String(gid));
+    const label = meta ? `${meta.title} (gid ${meta.gid})` : `gid ${gid}`;
+    const item = document.createElement('div');
+    item.className = 'selected-sheet-item';
+    item.dataset.gid = String(gid);
+    item.textContent = label;
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'selected-sheet-remove';
+    removeBtn.dataset.gid = String(gid);
+    removeBtn.textContent = 'x';
+    item.appendChild(removeBtn);
+    selectedSheetsList.appendChild(item);
+  });
+};
+
+const refreshCopySheetOptions = () => {
+  if (!copySheetSelect) return;
+  copySheetSelect.innerHTML = '';
+  const eligible = getCopyEligibleSheets();
+  if (!eligible.length) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = 'Khong co sheet khac';
+    copySheetSelect.appendChild(opt);
+    renderSelectedSheets();
+    return;
+  }
+  eligible.forEach(({ gid, title }) => {
+    const opt = document.createElement('option');
+    opt.value = String(gid);
+    opt.textContent = `${title} (gid ${gid})`;
+    copySheetSelect.appendChild(opt);
+  });
+  copySheetSelect.value = String(eligible[0].gid);
+  renderSelectedSheets();
+};
+
+const parseRangeInput = (input) => {
+  const raw = (input || '').replace(/\s+/g, '');
+  if (!raw) return { rows: [], error: null };
+  const parts = raw.split(',').filter(Boolean);
+  const rows = new Set();
+  for (const part of parts) {
+    if (/^\d+$/.test(part)) {
+      const num = Number(part);
+      if (num <= 0) return { rows: [], error: 'invalid' };
+      rows.add(num);
+      continue;
+    }
+    const match = part.match(/^(\d+)-(\d+)$/);
+    if (!match) return { rows: [], error: 'invalid' };
+    const start = Number(match[1]);
+    const end = Number(match[2]);
+    if (start <= 0 || end <= 0 || start > end) return { rows: [], error: 'invalid' };
+    for (let i = start; i <= end; i++) rows.add(i);
+  }
+  return { rows: Array.from(rows).sort((a, b) => a - b), error: null };
+};
+
+const updateCloneButton = () => {
+  if (!startCloneBtn || !copyRangeInput) return;
+  const { rows, error } = parseRangeInput(copyRangeInput.value);
+  startCloneBtn.style.display = rows.length && !error ? 'inline-flex' : 'none';
+};
+
+const showCloneOverlay = (message) => {
+  if (!cloneOverlay || !cloneProgress) return;
+  cloneProgress.textContent = message || 'Dang thuc hien...';
+  cloneOverlay.style.display = 'flex';
+};
+
+const updateCloneOverlay = (message) => {
+  if (!cloneOverlay || !cloneProgress) return;
+  cloneProgress.textContent = message || 'Dang thuc hien...';
+};
+
+const hideCloneOverlay = () => {
+  if (!cloneOverlay) return;
+  cloneOverlay.style.display = 'none';
+};
+
+const cloneViaWebApp = async ({ spreadsheetId, sourceGid, targetGids, rows, colorHex }) => {
+  const payload = {
+    spreadsheetId,
+    sourceGid,
+    targetGids,
+    rows,
+    colorHex,
+  };
+  const res = await fetch(CLONE_WEBAPP_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload),
+    mode: 'no-cors',
+  });
+  if (res.type === 'opaque') {
+    return { ok: true, opaque: true };
+  }
+  return res.json().catch(() => ({ ok: true }));
 };
 
 const embedSheet = ({ id, gid, title, publishedId }) => {
@@ -277,6 +414,7 @@ const highlightTree = (container, highlights = []) => {
 };
 
 const setSectionStatus = (msg, type = 'info') => {
+  if (!sectionStatus) return;
   const color = type === 'error' ? 'danger' : type === 'warn' ? 'warn' : '';
   sectionStatus.textContent = msg;
   sectionStatus.className = `badge${color ? ' ' + color : ''}`;
@@ -668,6 +806,7 @@ const renderApplyAllSection = () => {
 };
 
 const renderSections = (rows) => {
+  if (!sectionsContainer) return;
   sectionsContainer.innerHTML = '';
   sectionRefs = [];
   applyAllRef = null;
@@ -690,12 +829,15 @@ const renderSections = (rows) => {
 
 const handleCsvText = (text) => {
   localStorage.setItem(STORAGE_CSV, text);
+  if (!sectionsContainer) return;
   const rows = parseCsv(text);
   renderSections(rows);
   if (!rows.length) setSectionStatus('CSV khong hop le (can cot name,id)', 'error');
 };
 
 const renderMappingTable = () => {
+  const mappingHost = document.querySelector('#mappingHost');
+  if (!mappingHost) return;
   if (!mappingById || !Object.keys(mappingById).length) {
     setSectionStatus('Khong co mapping', 'warn');
     return;
@@ -716,11 +858,8 @@ const renderMappingTable = () => {
   });
   table.appendChild(tbody);
   container.appendChild(table);
-  const mappingHost = document.querySelector('#mappingHost');
-  if (mappingHost) {
-    mappingHost.innerHTML = '';
-    mappingHost.appendChild(container);
-  }
+  mappingHost.innerHTML = '';
+  mappingHost.appendChild(container);
 };
 
 const readLocalFile = (file) => new Promise((resolve, reject) => {
@@ -731,6 +870,7 @@ const readLocalFile = (file) => new Promise((resolve, reject) => {
 });
 
 const autoFetchConfig = async () => {
+  if (!sectionsContainer) return false;
   try {
     const sectionsUrl = CORS_PROXY ? `${CORS_PROXY}${encodeURIComponent('Configs/sections-config.csv')}` : 'Configs/sections-config.csv';
     const mappingUrl = CORS_PROXY ? `${CORS_PROXY}${encodeURIComponent('Configs/config_mapping.csv')}` : 'Configs/config_mapping.csv';
@@ -754,6 +894,7 @@ const autoFetchConfig = async () => {
 };
 
 const loadProjectConfig = async () => {
+  if (!sectionsContainer) return;
   const cachedMap = localStorage.getItem(STORAGE_MAP);
   const cachedCsv = localStorage.getItem(STORAGE_CSV);
   if (cachedMap) buildMappingIndex(parseMappingCsv(cachedMap));
@@ -856,10 +997,19 @@ sheetSelect.addEventListener('change', () => {
   const meta = sheetsMeta.find(s => String(s.gid) === String(gid));
   embedSheet({ id: currentSheetId, gid, title: meta?.title, publishedId: currentPublishedId });
   setStatus(`Dang hien thi sheet: ${meta?.title || `gid ${gid}`}`);
+  refreshCopySheetOptions();
 });
 
 loadCache();
 loadProjectConfig();
+updateCloneButton();
+try {
+  const saved = localStorage.getItem(STORAGE_SELECTED_SHEETS);
+  selectedCopySheetIds = saved ? JSON.parse(saved) : [];
+} catch {
+  selectedCopySheetIds = [];
+}
+renderSelectedSheets();
 
 sectionsFileInput?.addEventListener('change', async (e) => {
   const file = e.target.files?.[0];
@@ -945,6 +1095,74 @@ mappingFileInput?.addEventListener('change', async (e) => {
   }
 });
 
+copySelectBtn?.addEventListener('click', () => {
+  const gid = copySheetSelect?.value;
+  if (!gid) return;
+  if (!selectedCopySheetIds.includes(gid)) {
+    selectedCopySheetIds.push(gid);
+    renderSelectedSheets();
+  }
+});
+
+copySelectAllBtn?.addEventListener('click', () => {
+  const eligible = getCopyEligibleSheets();
+  eligible.forEach(({ gid }) => {
+    const id = String(gid);
+    if (!selectedCopySheetIds.includes(id)) selectedCopySheetIds.push(id);
+  });
+  renderSelectedSheets();
+});
+
+copyClearBtn?.addEventListener('click', () => {
+  selectedCopySheetIds = [];
+  renderSelectedSheets();
+});
+
+selectedSheetsList?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.selected-sheet-remove');
+  if (!btn) return;
+  const gid = btn.dataset.gid;
+  selectedCopySheetIds = selectedCopySheetIds.filter(id => String(id) !== String(gid));
+  renderSelectedSheets();
+});
+
+copyRangeInput?.addEventListener('input', updateCloneButton);
+
+startCloneBtn?.addEventListener('click', async () => {
+  const { rows, error } = parseRangeInput(copyRangeInput?.value || '');
+  if (error || !rows.length) {
+    setStatus('Range index khong hop le.', 'error');
+    return;
+  }
+  if (!selectedCopySheetIds.length) {
+    setStatus('Chua chon sheet de clone.', 'warn');
+    return;
+  }
+  if (!currentSheetId) {
+    setStatus('Chua co sheet ID.', 'error');
+    return;
+  }
+  try {
+    showCloneOverlay('Dang doc du lieu tu sheet nguon...');
+    setStatus('Dang doc du lieu tu sheet nguon...');
+    const sourceGid = getCurrentViewGid();
+    updateCloneOverlay('Dang gui yeu cau clone...');
+    await cloneViaWebApp({
+      spreadsheetId: currentSheetId,
+      sourceGid,
+      targetGids: selectedCopySheetIds,
+      rows,
+      colorHex: cloneColorInput?.value,
+    });
+    setStatus('Da clone du lieu vao cac sheet da chon.', 'info');
+  } catch (err) {
+    console.error(err);
+    setStatus(`Loi clone du lieu: ${err.message}`, 'error');
+  } finally {
+    hideCloneOverlay();
+  }
+});
+
 const fetchSheetRows = async (gid) => {
   const cacheKey = `${currentSheetId || ''}:${gid}`;
   if (sheetRowsCache[cacheKey]) return sheetRowsCache[cacheKey];
@@ -967,12 +1185,13 @@ const fetchSheetRows = async (gid) => {
     return acc;
   }, {});
 
-  const rows = values.slice(headerRowIdx + 1).map(row => {
+  const rows = values.slice(headerRowIdx + 1).map((row, idx) => {
     const obj = {};
     headers.forEach((h, idx) => { obj[h.toLowerCase()] = row[idx]; });
+    obj._rowNumber = headerRowIdx + 2 + idx;
     return obj;
   });
-  const result = { headers, headerIdx, rows };
+  const result = { headers, headerIdx, rows, headerRowIdx };
   sheetRowsCache[cacheKey] = result;
   return result;
 };

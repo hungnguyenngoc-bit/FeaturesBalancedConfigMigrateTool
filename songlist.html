@@ -12,8 +12,8 @@
   <main class="page">
     <nav class="sticky-header">
       <div class="tab-bar">
-        <a class="tab-link" href="index.html" aria-current="page">JSON config tool</a>
-        <a class="tab-link" href="songlist.html">songlist config tool</a>
+        <a class="tab-link" href="index.html">JSON config tool</a>
+        <a class="tab-link" href="songlist.html" aria-current="page">songlist config tool</a>
       </div>
     </nav>
     <header>
@@ -26,10 +26,7 @@
 
     <section class="panel">
       <div class="controls">
-        <label>
-          Google Cloud API Key
-          <input type="text" id="apiKey" placeholder="AIza..." autocomplete="off" />
-        </label>
+        <input type="hidden" id="apiKey" value="" />
         <label>
           Google Sheet URL hoac ID
           <input type="text" id="sheetUrl" placeholder="https://docs.google.com/spreadsheets/d/..." autocomplete="off" />
@@ -44,22 +41,6 @@
         </div>
       </div>
       <div class="status" id="status">Chi can nhap thong tin.</div>
-    </section>
-
-    <section class="panel section-panel">
-      <details open id="mappingToggle" class="mapping-section">
-        <summary>
-          <div>
-            <div class="compact-label">Mapping config</div>
-            <div class="muted">Chon file config_mapping.csv (cot: ID,column,type,json_key) hoac dung cache.</div>
-          </div>
-          <span class="chevron">v</span>
-        </summary>
-        <div class="file-row">
-          <input type="file" id="mappingFile" accept=".csv,text/csv" />
-        </div>
-        <div id="mappingHost"></div>
-      </details>
     </section>
 
     <section class="panel sheet-panel">
@@ -87,15 +68,39 @@
     <section class="panel section-panel">
       <div class="section-head">
         <div>
-          <div class="compact-label">Sections tu config CSV trong project</div>
-          <div class="muted">Chon file sections-config (cot: name, id) hoac dung cache.</div>
-          <div class="file-row">
-            <input type="file" id="sectionsFile" accept=".csv,text/csv" />
-          </div>
+          <div class="compact-label">Copy data from one sheet</div>
+          <div class="muted">Nhap range index dong can copy.</div>
         </div>
-        <div class="badge" id="sectionStatus">Chua tai</div>
       </div>
-      <div id="sectionsContainer" class="sections"></div>
+      <div class="controls">
+        <label>
+          Range index dong can copy
+          <input type="text" id="copyRange" placeholder="1-5,8,10-12" autocomplete="off" />
+        </label>
+      </div>
+      <div class="copy-select">
+        <div class="copy-select-row">
+          <div class="selector-row">
+            <label class="compact-label" for="copySheetSelect">Chon sheet</label>
+            <select id="copySheetSelect">
+              <option value="">Chua tai</option>
+            </select>
+          </div>
+          <button id="copySelectBtn" class="fixed-btn" type="button">Select</button>
+        </div>
+        <div class="btn-row">
+          <button id="copySelectAllBtn" class="fixed-btn" type="button">Select all sheets</button>
+          <button id="copyClearBtn" class="secondary danger-btn fixed-btn" type="button">Clear selected</button>
+        </div>
+        <div id="selectedSheets" class="selected-sheet-list"></div>
+        <div id="copyActionRow" class="btn-row">
+          <label class="color-label">
+            Highlight color
+            <input type="color" id="cloneColor" value="#ffeb3b" />
+          </label>
+          <button id="startCloneBtn" class="clone-btn fixed-btn" type="button" style="display:none;">Start Clone Data</button>
+        </div>
+      </div>
     </section>
 
     <footer class="footer">
@@ -105,7 +110,12 @@
       </div>
     </footer>
   </main>
-
+  <div id="cloneOverlay" class="overlay" style="display:none;">
+    <div class="overlay-card">
+      <div class="overlay-title">Cloning data</div>
+      <div id="cloneProgress" class="overlay-progress">Dang chuan bi...</div>
+    </div>
+  </div>
   <script src="script.js"></script>
 </body>
 </html>
