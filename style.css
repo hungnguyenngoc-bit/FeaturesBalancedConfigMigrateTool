@@ -283,6 +283,10 @@ iframe {
   background: #ff9800;
   color: #1b1204;
 }
+.download-btn {
+  background: #4dd0e1;
+  color: #0b1021;
+}
 .overlay {
   position: fixed;
   inset: 0;

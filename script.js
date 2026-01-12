@@ -22,6 +22,7 @@ const copyClearBtn = document.querySelector('#copyClearBtn');
 const selectedSheetsList = document.querySelector('#selectedSheets');
 const startCloneBtn = document.querySelector('#startCloneBtn');
 const cloneColorInput = document.querySelector('#cloneColor');
+const downloadSheetsBtn = document.querySelector('#downloadSheetsBtn');
 const cloneOverlay = document.querySelector('#cloneOverlay');
 const cloneProgress = document.querySelector('#cloneProgress');
 
@@ -39,7 +40,7 @@ const STORAGE_ALL_JSON = `${STORAGE_PREFIX}gs_all_json`;
 const STORAGE_SELECTED_SHEETS = `${STORAGE_PREFIX}gs_selected_copy_sheets`;
 
 // Optional CORS proxy to bypass policy when serving statically. Example:
-const CORS_PROXY = 'https://cors.isomorphic-fetch.workers.dev/?u=';
+const CORS_PROXY = '';
 const CLONE_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxPRWd7vE_xhjZg_qqV4iwvRsAF8BG9tt5dAxdAJUdQbyLnfNoXTEB-ZHXgOd6VDe0/exec';
 
 let sheetsMeta = [];
@@ -206,6 +207,44 @@ const refreshCopySheetOptions = () => {
   });
   copySheetSelect.value = String(eligible[0].gid);
   renderSelectedSheets();
+};
+
+const sanitizeFileName = (name) => (name || 'sheet')
+  .replace(/[\\/:*?"<>|]+/g, '_')
+  .replace(/\s+/g, ' ')
+  .trim() || 'sheet';
+
+const csvEscape = (value) => {
+  const raw = value === null || value === undefined ? '' : String(value);
+  if (/[",\n]/.test(raw)) {
+    return `"${raw.replace(/"/g, '""')}"`;
+  }
+  return raw;
+};
+
+const buildCsvText = (values) => values.map(row => row.map(csvEscape).join(',')).join('\n');
+
+const triggerDownload = (filename, text) => {
+  const blob = new Blob([text], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+};
+
+const fetchSheetValues = async (gid) => {
+  const apiKey = apiKeyInput.value.trim();
+  if (!apiKey || !currentSheetId) throw new Error('Thieu API key hoac sheet ID.');
+  const title = sheetsMeta.find(s => String(s.gid) === String(gid))?.title;
+  if (!title) throw new Error('Khong tim thay ten sheet.');
+  const range = `'${title}'`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${currentSheetId}/values/${encodeURIComponent(range)}?majorDimension=ROWS&key=${apiKey}`;
+  const data = await fetchJson(url);
+  return data.values || [];
 };
 
 const parseRangeInput = (input) => {
@@ -1124,6 +1163,47 @@ selectedSheetsList?.addEventListener('click', (e) => {
   const gid = btn.dataset.gid;
   selectedCopySheetIds = selectedCopySheetIds.filter(id => String(id) !== String(gid));
   renderSelectedSheets();
+});
+
+downloadSheetsBtn?.addEventListener('click', async () => {
+  if (!selectedCopySheetIds.length) {
+    setStatus('Chua chon sheet de tai.', 'warn');
+    return;
+  }
+  if (!currentSheetId) {
+    setStatus('Chua co sheet ID.', 'error');
+    return;
+  }
+  try {
+    showCloneOverlay('Dang chuan bi download...');
+    const useFolderPicker = !!window.showDirectoryPicker;
+    const dirHandle = useFolderPicker ? await window.showDirectoryPicker() : null;
+    const total = selectedCopySheetIds.length;
+    let index = 0;
+    for (const gid of selectedCopySheetIds) {
+      index += 1;
+      const meta = sheetsMeta.find(s => String(s.gid) === String(gid));
+      const title = meta?.title || `gid_${gid}`;
+      updateCloneOverlay(`Dang tai (${index}/${total}) ${title}...`);
+      const values = await fetchSheetValues(gid);
+      const csvText = buildCsvText(values);
+      const safeName = sanitizeFileName(title);
+      if (dirHandle) {
+        const fileHandle = await dirHandle.getFileHandle(`${safeName}.csv`, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(csvText);
+        await writable.close();
+      } else {
+        triggerDownload(`${safeName}.csv`, csvText);
+      }
+    }
+    setStatus('Da tai xong tat ca sheet da chon.', 'info');
+  } catch (err) {
+    console.error(err);
+    setStatus(`Loi tai sheet: ${err.message}`, 'error');
+  } finally {
+    hideCloneOverlay();
+  }
 });
 
 copyRangeInput?.addEventListener('input', updateCloneButton);
